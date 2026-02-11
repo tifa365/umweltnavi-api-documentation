@@ -1,5 +1,8 @@
 # Umweltnavi API Documentation
 
+> [!WARNING]
+> **Data rights have not been confirmed.** The data served by this API belongs to various German federal and state agencies. Licensing terms, usage restrictions, and redistribution rights have not been verified. Use at your own risk and do not assume the data is freely available for commercial or public use. Always check the `license` and `owner` fields on individual objects for attribution requirements.
+
 > **Base URL:** `https://api.umweltnavi.info/web/v1`
 > **Frontend:** [umweltportal.niedersachsen.de](https://umweltportal.niedersachsen.de)
 > **OpenAPI Spec:** [`umweltnavi-topics-api.yaml`](./umweltnavi-topics-api.yaml)
