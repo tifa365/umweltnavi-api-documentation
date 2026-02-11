@@ -1,0 +1,1025 @@
+openapi: 3.0.3
+info:
+  title: Umweltnavi API
+  description: |
+    API for the German environmental portal (Umweltportal) providing environmental,
+    nature, and geographic data for German federal states.
+
+    The API is consumed by the frontend at `https://umweltportal.niedersachsen.de`
+    and serves as the content and geodata backbone for the interactive environmental
+    map application.
+
+    ## Core Concepts
+
+    ### Topic Tree (Content API)
+    A **4-level hierarchy** drives navigation and layer selection:
+    1. **Topics** — Top-level themes (e.g. "Natur und Landschaft")
+    2. **Subtopics** — Thematic sections (e.g. "Lebensräume", "Schutzgebiete")
+    3. **Selectcategory Groups** — Logical groupings of map layers
+    4. **Selectcategories / Categories** — Individual map layer definitions
+
+    ### Spatial Objects (Geodata API)
+    A **tile-based spatial query** system returns geographic features within a
+    bounding box. Results are organized into map tiles (slippy map tile scheme)
+    at the requested zoom level. Each object references a `category` and
+    `selectcategory` from the topic tree.
+
+  version: 1.0.0
+  contact:
+    name: Umweltnavi
+    url: https://umweltportal.niedersachsen.de
+
+servers:
+  - url: https://api.umweltnavi.info/web/v1
+    description: Production API
+
+paths:
+
+  # ════════════════════════════════════════════════
+  # Topics
+  # ════════════════════════════════════════════════
+  /{state}/topics:
+    get:
+      operationId: getTopics
+      summary: Get all topics for a federal state
+      description: |
+        Returns the complete hierarchical topic tree for a given German federal state.
+        The response includes all topics, subtopics, selectcategory groups, and
+        individual categories with their metadata, icons, descriptions, and content blocks.
+      tags:
+        - Topics
+      parameters:
+        - $ref: '#/components/parameters/state'
+      responses:
+        '200':
+          description: |
+            Successful response with the full topic tree.
+            **Known API bug:** Invalid state values (not in enum) may return
+            `200` with a `null` body instead of `400`.
+          content:
+            application/json:
+              schema:
+                nullable: true
+                type: array
+                items:
+                  $ref: '#/components/schemas/Topic'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+
+  # ════════════════════════════════════════════════
+  # Spatial Objects (bounding box query)
+  # ════════════════════════════════════════════════
+  /{state}/objects/{zoom}/{lat1}/{lon1}/{lat2}/{lon2}:
+    get:
+      operationId: getObjects
+      summary: Query spatial objects within a bounding box
+      description: |
+        Returns all spatial objects (points of interest, nature observations,
+        infrastructure, etc.) within the specified geographic bounding box.
+
+        Results are grouped into **map tiles** using a slippy map tile coordinate
+        system at the requested zoom level. Each tile contains an array of objects,
+        which may be empty if no features exist in that tile.
+
+        ### Object ID Prefixes
+        Object IDs encode their data source:
+        - `oorg-*` — observation.org species sightings
+        - `kwf-*` — KWF forest rescue points
+        - `mastr-*` — Marktstammdatenregister energy installations
+        - `bkg-*` — Bundesamt für Kartographie und Geodäsie
+        - `nlwkn-*` — NLWKN protected areas
+        - `numis-*` — NUMIS metadata services
+        - `bfg-*` — Bundesanstalt für Gewässerkunde
+      tags:
+        - Spatial Objects
+      parameters:
+        - $ref: '#/components/parameters/state'
+        - name: zoom
+          in: path
+          required: true
+          description: |
+            Map zoom level (slippy map tile scheme). Determines tile grid resolution.
+            Higher values = smaller tiles = more detail.
+            Very low zoom levels (< 6) or very high (> 18) may cause timeouts.
+          schema:
+            type: integer
+            minimum: 6
+            maximum: 18
+            example: 16
+        - name: lat1
+          in: path
+          required: true
+          description: |
+            Latitude of the **north** edge of the bounding box (WGS84).
+            Practical range for Germany: 47.0–55.5. Values outside this
+            range return empty tiles. Extreme values (>85 or <-85) may
+            cause 502 errors.
+          schema:
+            type: number
+            format: double
+            minimum: -85.0
+            maximum: 85.0
+            example: 53.7938
+        - name: lon1
+          in: path
+          required: true
+          description: |
+            Longitude of the **west** edge of the bounding box (WGS84).
+            Practical range for Germany: 5.5–15.5. Values outside this
+            range return empty tiles. Exactly ±180 causes backend errors.
+          schema:
+            type: number
+            format: double
+            minimum: -180.0
+            exclusiveMinimum: true
+            maximum: 180.0
+            exclusiveMaximum: true
+            example: 12.2032
+        - name: lat2
+          in: path
+          required: true
+          description: |
+            Latitude of the **south** edge of the bounding box (WGS84).
+            Practical range for Germany: 47.0–55.5.
+          schema:
+            type: number
+            format: double
+            minimum: -85.0
+            maximum: 85.0
+            example: 53.7841
+        - name: lon2
+          in: path
+          required: true
+          description: |
+            Longitude of the **east** edge of the bounding box (WGS84).
+            Practical range for Germany: 5.5–15.5. Very large bounding
+            boxes may cause timeouts. Exactly ±180 causes backend errors.
+          schema:
+            type: number
+            format: double
+            minimum: -180.0
+            exclusiveMinimum: true
+            maximum: 180.0
+            exclusiveMaximum: true
+            example: 12.2444
+        - name: tag
+          in: query
+          required: false
+          description: |
+            Filter objects by tag. Supports boolean `OR` operator.
+            Common values: `spatial-object`, `map-service`.
+          schema:
+            type: string
+            example: map-service OR spatial-object
+        - name: selectcategory
+          in: query
+          required: false
+          description: Filter results to a specific selectcategory ID.
+          schema:
+            type: string
+            example: libellen
+        - name: category
+          in: query
+          required: false
+          description: Filter results to a specific category ID.
+          schema:
+            type: string
+            example: seehundliegeplatz
+      responses:
+        '200':
+          description: Tile grid with spatial objects.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TileResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+
+  # ════════════════════════════════════════════════
+  # Object Detail
+  # ════════════════════════════════════════════════
+  /{state}/objects/{objectId}:
+    get:
+      operationId: getObjectDetail
+      summary: Get detailed information about a single object
+      description: |
+        Returns the full detail for a spatial object including description,
+        images, data links, WMS layer references, and polygon outlines.
+
+        Objects with `has_details: true` include additional fields such as
+        `description`, `images`, `data`, and `pages`.
+
+        Polygon objects (e.g. nature reserves) include a `shape.outline` with
+        GeoJSON-style coordinates and optionally a `wms` field referencing
+        the corresponding WMS map layer.
+      tags:
+        - Spatial Objects
+      parameters:
+        - $ref: '#/components/parameters/state'
+        - name: objectId
+          in: path
+          required: true
+          description: |
+            Unique object identifier. Prefixed by data source:
+            `oorg-`, `kwf-`, `mastr-`, `nlwkn-`, `bkg-`, `numis-`, `bfg-`.
+          schema:
+            type: string
+            example: oorg-libellen-363663219
+      responses:
+        '200':
+          description: Full object detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObjectDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Object not found.
+        '502':
+          $ref: '#/components/responses/BadGateway'
+
+  # ════════════════════════════════════════════════
+  # Search
+  # ════════════════════════════════════════════════
+  /{state}/search:
+    get:
+      operationId: searchObjects
+      summary: Full-text search across all objects
+      description: |
+        Searches across all spatial objects and metadata by name/keyword.
+        Returns matching objects with their category, selectcategory, tags,
+        and a reference ID that can be used with the object detail endpoint.
+      tags:
+        - Search
+      parameters:
+        - $ref: '#/components/parameters/state'
+        - name: q
+          in: query
+          required: true
+          description: |
+            Search query string. Must contain at least one alphabetic character.
+            Numeric-only queries may be rejected with 400.
+          schema:
+            type: string
+            minLength: 3
+            pattern: '.*[a-zA-ZäöüÄÖÜß].*'
+            example: eisvogel
+      responses:
+        '200':
+          description: Search results.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+
+  # ════════════════════════════════════════════════
+  # Pages
+  # ════════════════════════════════════════════════
+  /{state}/pages/{pageId}:
+    get:
+      operationId: getPage
+      summary: Get a CMS content page
+      description: |
+        Returns the content of a CMS page referenced by `pages` arrays
+        in topics, subtopics, selectcategories, and object details.
+        Pages contain editorial content with rich text, images, and links.
+      tags:
+        - Content
+      parameters:
+        - $ref: '#/components/parameters/state'
+        - name: pageId
+          in: path
+          required: true
+          description: Numeric page ID (referenced in `pages` arrays throughout the API).
+          schema:
+            type: integer
+            minimum: 1
+            example: 81
+      responses:
+        '200':
+          description: Page content.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Page not found.
+        '502':
+          $ref: '#/components/responses/BadGateway'
+
+  # ════════════════════════════════════════════════
+  # Events
+  # ════════════════════════════════════════════════
+  /{state}/events:
+    get:
+      operationId: getEvents
+      summary: Get press releases and news events
+      description: |
+        Returns environmental news events and press releases related to the
+        portal's topics. Events link to spatial objects and selectcategories.
+      tags:
+        - Content
+      parameters:
+        - $ref: '#/components/parameters/state'
+      responses:
+        '200':
+          description: List of events.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+
+# ══════════════════════════════════════════════════
+# Components
+# ══════════════════════════════════════════════════
+components:
+
+  # ────────────────────────────────────────────────
+  # Shared Parameters
+  # ────────────────────────────────────────────────
+  parameters:
+    state:
+      name: state
+      in: path
+      required: true
+      description: |
+        Two-letter abbreviation of the German federal state (Bundesland).
+        Currently supported: `ni` (Niedersachsen), `sh` (Schleswig-Holstein),
+        `rp` (Rheinland-Pfalz).
+      schema:
+        type: string
+        enum:
+          - ni
+          - sh
+          - rp
+        example: ni
+
+  # ────────────────────────────────────────────────
+  # Shared Responses
+  # ────────────────────────────────────────────────
+  responses:
+    BadRequest:
+      description: |
+        Invalid request parameters (unsupported state, invalid coordinates, etc.).
+        Response body may be `null` or a JSON object with a `message` field.
+        Nginx may also return an HTML error page for malformed URLs.
+      content:
+        application/json:
+          schema:
+            nullable: true
+            type: object
+            properties:
+              message:
+                type: string
+                example: "Point has invalid coordinates."
+        text/html:
+          schema:
+            type: string
+            description: Nginx HTML error page for malformed requests.
+    BadGateway:
+      description: |
+        Backend service unavailable. Typically caused by timeouts from
+        overly large bounding boxes or server overload. Nginx returns HTML.
+
+  # ────────────────────────────────────────────────
+  # Schemas
+  # ────────────────────────────────────────────────
+  schemas:
+
+    # ── Spatial: Tile Response ────────────────────
+    TileResponse:
+      nullable: true
+      type: object
+      properties:
+        tiles:
+          type: array
+          description: |
+            Map tiles intersecting the bounding box. Includes empty tiles.
+            Missing when the API returns an error with 200 status.
+          items:
+            $ref: '#/components/schemas/Tile'
+        message:
+          type: string
+          description: |
+            Error message returned with HTTP 200 when path parameters
+            cannot be parsed (e.g. non-numeric coordinates). This is a
+            known API bug — these should be 400 responses.
+
+    Tile:
+      type: object
+      required:
+        - x
+        - "y"
+        - objects
+      properties:
+        x:
+          type: integer
+          description: Tile X coordinate (slippy map grid).
+          example: 34989
+        "y":
+          type: integer
+          description: Tile Y coordinate (slippy map grid).
+          example: 21106
+        objects:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpatialObject'
+
+    # ── Spatial: Object (summary in tiles) ────────
+    SpatialObject:
+      type: object
+      required:
+        - id
+        - type
+        - name
+        - category
+        - selectcategory
+        - tags
+        - shape
+      properties:
+        id:
+          type: string
+          example: oorg-libellen-363663219
+        type:
+          type: string
+          example: object
+        name:
+          type: string
+          example: Gebänderte Prachtlibelle
+        icon:
+          type: string
+          format: uri
+        category:
+          type: string
+          example: gebaenderte-prachtlibelle
+        selectcategory:
+          type: string
+          example: libellen
+        tags:
+          type: array
+          items:
+            type: string
+          example: [spatial-object]
+        shape:
+          $ref: '#/components/schemas/ShapeSummary'
+
+    ShapeSummary:
+      type: object
+      properties:
+        centroid:
+          $ref: '#/components/schemas/Centroid'
+
+    Centroid:
+      type: object
+      required:
+        - lat
+        - long
+      properties:
+        lat:
+          type: number
+          format: double
+          example: 53.793045
+        long:
+          type: number
+          format: double
+          example: 12.203745
+
+    # ── Spatial: Object Detail ────────────────────
+    ObjectDetail:
+      nullable: true
+      type: object
+      required:
+        - id
+        - type
+        - name
+        - selectcategory
+        - category
+        - shape
+        - tags
+      properties:
+        id:
+          type: string
+          example: oorg-libellen-363663219
+        type:
+          type: string
+          example: object
+        name:
+          type: string
+          example: Gebänderte Prachtlibelle
+        info:
+          type: string
+          description: Short info line (e.g. sighting date, location, capacity).
+          example: "gesichtet am 18.07.2025"
+        icon:
+          type: string
+          format: uri
+        owner:
+          $ref: '#/components/schemas/Attribution'
+        license:
+          $ref: '#/components/schemas/Attribution'
+        topics:
+          type: array
+          items:
+            type: string
+          example: [pflanzen-und-tierwelt]
+        subtopics:
+          type: array
+          items:
+            type: string
+          example: [arten-vor-ort-entdecken]
+        selectcategory:
+          type: string
+          example: libellen
+        category:
+          type: string
+          example: gebaenderte-prachtlibelle
+        shape:
+          $ref: '#/components/schemas/ShapeDetail'
+        tags:
+          type: array
+          items:
+            type: string
+          example: [spatial-object]
+        object_date:
+          type: string
+          format: date-time
+          description: Date of the observation or data point.
+        import_date:
+          type: string
+          format: date-time
+          description: When this object was imported into the system.
+        has_details:
+          type: boolean
+          description: If true, `description`, `images`, and `data` are populated.
+        description:
+          type: object
+          properties:
+            text:
+              type: string
+            source:
+              $ref: '#/components/schemas/Attribution'
+            license:
+              $ref: '#/components/schemas/Attribution'
+            object_date:
+              type: string
+              format: date-time
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/ObjectImage'
+        data:
+          type: array
+          description: Grouped external links (e.g. Wikipedia, Observation.org).
+          items:
+            $ref: '#/components/schemas/DataGroup'
+        pages:
+          type: array
+          items:
+            type: integer
+          example: [69, 34]
+        wms:
+          $ref: '#/components/schemas/WmsReference'
+        meta_data_url:
+          type: string
+          format: uri
+          description: URL to external metadata record (e.g. geoportal.de).
+
+    ShapeDetail:
+      type: object
+      properties:
+        bounds:
+          type: object
+          properties:
+            top_left:
+              $ref: '#/components/schemas/Centroid'
+            bottom_right:
+              $ref: '#/components/schemas/Centroid'
+        centroid:
+          $ref: '#/components/schemas/Centroid'
+        geometry_type:
+          type: string
+          enum:
+            - point
+            - polygon
+        outline:
+          type: object
+          description: GeoJSON-style polygon (only for geometry_type=polygon).
+          properties:
+            type:
+              type: string
+              example: Polygon
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: number
+                  minItems: 2
+                  maxItems: 2
+
+    ObjectImage:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+        title:
+          type: string
+        description:
+          type: string
+        object_date:
+          type: string
+          format: date-time
+        author:
+          $ref: '#/components/schemas/Attribution'
+        source:
+          $ref: '#/components/schemas/Attribution'
+        license:
+          $ref: '#/components/schemas/Attribution'
+
+    DataGroup:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Wikipedia
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentBlock'
+
+    WmsReference:
+      type: object
+      description: Reference to a WMS map service for rendering this object's area.
+      properties:
+        url:
+          type: string
+          format: uri
+        type:
+          type: string
+          example: wms
+        layer:
+          type: object
+          properties:
+            name:
+              type: string
+            title:
+              type: string
+            legend_url:
+              type: string
+              format: uri
+
+    # ── Search ────────────────────────────────────
+    SearchResponse:
+      nullable: true
+      type: object
+      required:
+        - results
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResult'
+
+    SearchResult:
+      type: object
+      required:
+        - content
+        - type
+        - tags
+        - ref
+      properties:
+        content:
+          type: object
+          required:
+            - name
+          properties:
+            name:
+              type: string
+              example: Bruchbach
+            category:
+              type: string
+            selectcategory:
+              type: string
+            subtopic:
+              type: string
+        type:
+          type: string
+          example: object
+        tags:
+          type: array
+          items:
+            type: string
+        ref:
+          description: |
+            Reference ID. For `type: "object"`, a string object ID usable with
+            `/{state}/objects/{objectId}`. For `type: "page"`, an integer page ID
+            usable with `/{state}/pages/{pageId}`.
+          oneOf:
+            - type: string
+              example: nlwkn-lsg-lsg-ce-00035
+            - type: integer
+              example: 129
+
+    # ── Pages ─────────────────────────────────────
+    Page:
+      nullable: true
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: integer
+          example: 81
+        name:
+          type: string
+          example: Nordische Gastvögel
+        teaser_text:
+          type: string
+        teaser_image:
+          $ref: '#/components/schemas/Image'
+        info_text:
+          type: string
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentBlock'
+
+    # ── Events ────────────────────────────────────
+    EventsResponse:
+      nullable: true
+      type: object
+      required:
+        - events
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/Event'
+
+    Event:
+      type: object
+      required:
+        - id
+        - type
+        - title
+      properties:
+        id:
+          type: string
+          example: umweltnavi-c2a487c5
+        type:
+          type: string
+          description: Event type.
+          example: press_release
+        title:
+          type: string
+        teaser_text:
+          type: string
+        info:
+          type: string
+          description: Full HTML content of the event.
+        image:
+          $ref: '#/components/schemas/Image'
+        publish_date:
+          type: string
+          format: date-time
+        end_date:
+          type: string
+          format: date-time
+        links:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventLink'
+        selectcategories:
+          type: array
+          items:
+            type: string
+        tags:
+          type: array
+          items:
+            type: string
+
+    EventLink:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Object ID or selectcategory ID.
+        url:
+          type: string
+          format: uri
+          description: External URL (for link type).
+        type:
+          type: string
+          enum:
+            - object
+            - selectcategory
+            - subtopic
+            - link
+
+    # ── Topic Tree ────────────────────────────────
+    Topic:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          example: natur-und-landschaft
+        name:
+          type: string
+          example: Natur und Landschaft
+        image:
+          $ref: '#/components/schemas/Image'
+        subtopics:
+          type: array
+          items:
+            $ref: '#/components/schemas/Subtopic'
+
+    Subtopic:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          example: lebensraeume
+        name:
+          type: string
+          example: Lebensräume
+        info_text:
+          type: string
+        long_text:
+          type: string
+        content_1:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentBlock'
+        content_2:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentBlock'
+        pages:
+          type: array
+          items:
+            type: integer
+        legal_foundations:
+          type: array
+          items:
+            $ref: '#/components/schemas/LegalFoundation'
+        selectcategory_groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/SelectcategoryGroup'
+
+    SelectcategoryGroup:
+      type: object
+      properties:
+        name:
+          type: string
+        selectcategories:
+          type: array
+          items:
+            $ref: '#/components/schemas/Selectcategory'
+
+    Selectcategory:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        icon:
+          type: string
+          format: uri
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+        info_text:
+          type: string
+        long_text:
+          type: string
+        photo_upload:
+          type: boolean
+        route_guidance:
+          type: boolean
+        include_tip_of_day:
+          type: boolean
+        hidden:
+          type: boolean
+        pages:
+          type: array
+          items:
+            type: integer
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryRef'
+
+    CategoryRef:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        icon:
+          type: string
+          format: uri
+
+    # ── Shared ────────────────────────────────────
+    Image:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+        title:
+          type: string
+        description:
+          type: string
+        source:
+          $ref: '#/components/schemas/Attribution'
+        author:
+          $ref: '#/components/schemas/Attribution'
+        license:
+          $ref: '#/components/schemas/Attribution'
+
+    Attribution:
+      type: object
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+
+    ContentBlock:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+            - text
+            - image
+            - link
+        title:
+          type: string
+        content:
+          type: string
+        url:
+          type: string
+          format: uri
+        source:
+          $ref: '#/components/schemas/Attribution'
+        author:
+          $ref: '#/components/schemas/Attribution'
+        license:
+          $ref: '#/components/schemas/Attribution'
+        description:
+          type: string
+
+    LegalFoundation:
+      type: object
+      properties:
+        text:
+          type: string
+        url:
+          type: string
+          format: uri
+
+tags:
+  - name: Topics
+    description: Hierarchical topic/category tree for navigation and layer catalog.
+  - name: Spatial Objects
+    description: Geographic features query — tile-based bounding box and single object detail.
+  - name: Search
+    description: Full-text search across all objects and metadata.
+  - name: Content
+    description: CMS pages and news events.
