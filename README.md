@@ -20,7 +20,7 @@ The Umweltnavi API is the data backbone behind Germany's interactive environment
 | **Base URL** | `https://api.umweltnavi.info/web/v1` |
 | **Spec format** | OpenAPI 3.0.3 (YAML) |
 | **Endpoints** | 6 |
-| **States** | `ni` (Niedersachsen), `sh` (Schleswig-Holstein), `rp` (Rheinland-Pfalz) |
+| **Portals** | `ni` (Niedersachsen), `sh` (Schleswig-Holstein), `rp` (Rheinland-Pfalz) — data is Germany-wide |
 | **Schemas** | 25+ reusable component definitions |
 
 ---
@@ -84,7 +84,7 @@ The API does **not** require authentication tokens or API keys. However, two hea
 
 ## 3. Supported States
 
-Every endpoint is scoped to a German federal state (Bundesland) via the `{state}` path parameter. Currently three states are supported:
+Every endpoint requires a `{state}` path parameter that selects a **portal configuration** (topic tree, editorial content, news). It does **not** limit geographic coverage — all three portals serve data across all of Germany.
 
 | Code | State | Notes |
 |------|-------|-------|
@@ -92,7 +92,7 @@ Every endpoint is scoped to a German federal state (Bundesland) via the `{state}
 | `sh` | Schleswig-Holstein | Full support, slightly different topic tree |
 | `rp` | Rheinland-Pfalz | Full support |
 
-> **Tip:** The topic tree, available categories, and number of objects differ between states. Niedersachsen (`ni`) has the richest data.
+> **Important:** The `{state}` parameter controls which **topic tree and editorial content** you see, not the geographic extent. Querying `ni` with Berlin or Munich coordinates still returns species sightings, air quality stations, waterways, and other Germany-wide datasets. The underlying spatial data (observation.org sightings, federal agency datasets, energy installations, etc.) covers all 16 Bundesländer.
 
 ---
 

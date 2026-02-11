@@ -358,9 +358,10 @@ components:
       in: path
       required: true
       description: |
-        Two-letter abbreviation of the German federal state (Bundesland).
+        Two-letter abbreviation selecting a portal configuration.
         Currently supported: `ni` (Niedersachsen), `sh` (Schleswig-Holstein),
-        `rp` (Rheinland-Pfalz).
+        `rp` (Rheinland-Pfalz). This controls the topic tree and editorial
+        content, not geographic extent — spatial data covers all of Germany.
       schema:
         type: string
         enum:
