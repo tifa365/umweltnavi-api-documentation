@@ -3,11 +3,25 @@
 > [!WARNING]
 > **Data rights have not been confirmed.** The data served by this API belongs to various German federal and state agencies. Licensing terms, usage restrictions, and redistribution rights have not been verified. Use at your own risk and do not assume the data is freely available for commercial or public use. Always check the `license` and `owner` fields on individual objects for attribution requirements.
 
-> **Base URL:** `https://api.umweltnavi.info/web/v1`
-> **Frontend:** [umweltportal.niedersachsen.de](https://umweltportal.niedersachsen.de)
-> **OpenAPI Spec:** [`umweltnavi-topics-api.yaml`](./umweltnavi-topics-api.yaml)
+The Umweltnavi API is the data backbone behind Germany's interactive environmental portal ([umweltportal.niedersachsen.de](https://umweltportal.niedersachsen.de)). It serves environmental, nature, and geographic data for multiple German federal states — from dragonfly sightings and nature reserves to wind turbines and flood zones.
 
-The Umweltnavi API is the data backbone behind Germany's interactive environmental portal. It serves environmental, nature, and geographic data for multiple German federal states — from dragonfly sightings and nature reserves to wind turbines and flood zones.
+## OpenAPI Specification
+
+**[`umweltnavi-topics-api.yaml`](./umweltnavi-topics-api.yaml)** — the machine-readable OpenAPI 3.0.3 spec is the core of this repository. Use it to:
+
+- **Generate API clients** in any language (Python, TypeScript, Java, ...) with tools like [openapi-generator](https://openapi-generator.tech/)
+- **Import into Swagger UI / Redoc** for interactive, browsable API docs
+- **Validate requests & responses** with schema-aware HTTP clients
+- **Run automated tests** with [Schemathesis](https://github.com/schemathesis/schemathesis) (this spec was validated across 9 fuzzing iterations)
+- **Load into Postman / Insomnia** for manual exploration
+
+| | |
+|---|---|
+| **Base URL** | `https://api.umweltnavi.info/web/v1` |
+| **Spec format** | OpenAPI 3.0.3 (YAML) |
+| **Endpoints** | 6 |
+| **States** | `ni` (Niedersachsen), `sh` (Schleswig-Holstein), `rp` (Rheinland-Pfalz) |
+| **Schemas** | 25+ reusable component definitions |
 
 ---
 
