@@ -20,7 +20,7 @@ The Umweltnavi API is the data backbone behind Germany's interactive environment
 | **Base URL** | `https://api.umweltnavi.info/web/v1` |
 | **Spec format** | OpenAPI 3.0.3 (YAML) |
 | **Endpoints** | 6 |
-| **Portals** | `ni` (Niedersachsen), `sh` (Schleswig-Holstein), `rp` (Rheinland-Pfalz) — data is Germany-wide |
+| **States** | `ni`, `sh`, `rp` — editorial content varies, map data is Germany-wide |
 | **Schemas** | 25+ reusable component definitions |
 
 ---
@@ -84,15 +84,15 @@ The API does **not** require authentication tokens or API keys. However, two hea
 
 ## 3. Supported States
 
-Every endpoint requires a `{state}` path parameter that selects a **portal configuration** (topic tree, editorial content, news). It does **not** limit geographic coverage — all three portals serve data across all of Germany.
+Every endpoint requires a `{state}` path parameter. Only three values are accepted: `ni`, `sh`, `rp` (lowercase, case-sensitive).
 
-| Code | State | Notes |
-|------|-------|-------|
-| `ni` | Niedersachsen | Most complete dataset — the primary portal |
-| `sh` | Schleswig-Holstein | Full support, slightly different topic tree |
-| `rp` | Rheinland-Pfalz | Full support |
+| Code | State |
+|------|-------|
+| `ni` | Niedersachsen |
+| `sh` | Schleswig-Holstein |
+| `rp` | Rheinland-Pfalz |
 
-> **Important:** The `{state}` parameter controls which **topic tree and editorial content** you see, not the geographic extent. Querying `ni` with Berlin or Munich coordinates still returns species sightings, air quality stations, waterways, and other Germany-wide datasets. The underlying spatial data (observation.org sightings, federal agency datasets, energy installations, etc.) covers all 16 Bundesländer.
+> **The map data covers all of Germany.** Dragonfly sightings in Munich, wind turbines in Berlin, nature reserves in Saarland — it's all there regardless of which state you pick. The `{state}` parameter only changes the **editorial content**: which press releases, articles, and menu structure you see. Think of it as three regional websites sharing the same map database. For the richest editorial content, use `ni`.
 
 ---
 
